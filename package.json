@@ -1,6 +1,6 @@
 {
   "name": "com.unity.meshopt.decompress",
-  "version": "0.1.0-preview.2",
+  "version": "0.1.0-preview.3",
   "displayName": "meshoptimizer decompression for Unity",
   "description": "Use the meshoptimizer decompression for Unity package to decode meshoptimizer compressed index/vertex buffers efficiently in Burst-compiled C# Jobs off the main thread.",
   "unity": "2019.4",
@@ -14,14 +14,14 @@
   },
   "type": "library",
   "relatedPackages": {
-    "com.unity.meshopt.decompress.tests": "0.1.0-preview.2"
+    "com.unity.meshopt.decompress.tests": "0.1.0-preview.3"
   },
   "upmCi": {
-    "footprint": "cc58aec5c8c28a3d180ad4fabdda55e8f704a8a4"
+    "footprint": "8e219fbcec3b86d75c820530034e8d46f009485c"
   },
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.meshopt.decompress.git",
     "type": "git",
-    "revision": "47ed001e214b310e7c182c9f806967946ec522be"
+    "revision": "87b2ca16c260f173a91990b8aed37859648b58db"
   }
 }

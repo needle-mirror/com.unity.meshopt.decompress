@@ -264,11 +264,12 @@ namespace Meshoptimizer {
 
         internal static void ApplyExponentialFilter(NativeArray<byte> target, uint vertexCount, uint vertexSize) {
 	        var src = target.Reinterpret<uint>(sizeof(byte));
+	        var dst = target.Reinterpret<float>(sizeof(byte));
 	        for (var i = 0; i < (vertexSize * vertexCount) / 4; i++) {
 		        var v = src[i];
-		        var exp = v >> 24;
-		        var mantissa = (v << 8) >> 8;
-		        src[i] = (uint)math.pow(2.0f, exp) * mantissa;
+		        var exp = (int) v >> 24;
+		        var mantissa = (int) (v << 8) >> 8;
+		        dst[i] = math.pow(2.0f, exp) * mantissa;
 	        }
         }
 
