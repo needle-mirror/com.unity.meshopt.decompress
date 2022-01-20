@@ -98,7 +98,6 @@ namespace Meshoptimizer {
             switch (filter) {
 	            // Filters - only applied if filter isn't undefined or NONE
 	            case Filter.Octahedral:
-		            // throw new NotImplementedException($"Filter {filter} is not implemented");
 		            Assert.IsTrue( vertexSize == 4 || vertexSize == 8);
 		            if (vertexSize == 4) {
 						ApplyOctahedralFilterOct8(destination, vertexCount);
@@ -177,7 +176,7 @@ namespace Meshoptimizer {
 				UnsafeUtility.MemCpy(buffer, data, Decode.kByteGroupSize);
 				return data + Decode.kByteGroupSize;
 			default:
-				throw new Exception("Unexpected bit length");
+				return null;
 			}
 		}
 
@@ -205,6 +204,9 @@ namespace Meshoptimizer {
 		        var bitsLog2 = (header[headerOffset / 4] >> (int) (((headerOffset % 4) * 2)) & 3);
 
 		        data = DecodeBytesGroup(data, buffer + i, bitsLog2);
+		        if (data == null) {
+			        return null;
+		        }
 	        }
 
 	        return data;
