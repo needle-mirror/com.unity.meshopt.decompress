@@ -15,11 +15,11 @@ To install this package, refer to the instructions that match your Unity Editor 
 
 ### Version 2021.1 and later
 
-To install this package, follow the instructions for [adding a package by name](https://docs.unity3d.com/2021.1/Documentation/Manual/upm-ui-quick.html) in the Unity Editor. 
+To install this package, follow the instructions for [adding a package by name](https://docs.unity3d.com/2021.1/Documentation/Manual/upm-ui-quick.html) in the Unity Editor.
 
 ### Version 2020.3 and earlier
 
-To install this package, follow the instructions for [installing hidden packages](https://docs.unity3d.com/Packages/Installation/manual/upm-ui-quick.html). 
+To install this package, follow the instructions for [installing hidden packages](https://docs.unity3d.com/Packages/Installation/manual/upm-ui-quick.html).
 
 ## Requirements
 
@@ -63,7 +63,7 @@ IEnumerator Start() {
 
    // - A NativeArray container for the return code
    //   After decompression, this first (and only) member of this array is the
-   //   return code indicating if the decompression was successful (in which case 
+   //   return code indicating if the decompression was successful (in which case
    //   it is `0`)
    var returnCode = new NativeArray<int>(1,Allocator.TempJob);
 
@@ -158,4 +158,3 @@ A common use-case for meshoptimizer decompression is loading [glTF][gltf] files 
 [meshopt]: https://github.com/zeux/meshoptimizer
 [meshopt-compression]: https://github.com/zeux/meshoptimizer#vertexindex-buffer-compression
 [zeux]: https://github.com/zeux
-

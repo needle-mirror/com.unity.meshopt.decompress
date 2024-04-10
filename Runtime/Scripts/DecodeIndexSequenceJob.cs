@@ -1,97 +1,106 @@
-﻿using System;
+using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
 
-namespace Meshoptimizer {
-	
-	[BurstCompile]
-    unsafe struct DecodeIndexSequenceJob : IJob {
+namespace Meshoptimizer
+{
 
-	    [WriteOnly]
-	    public NativeArray<byte> destination;
-	    
-	    [ReadOnly]
-	    public NativeSlice<byte> source;
-	    
-	    public int indexCount;
-	    public int indexSize;
-	    
-	    [WriteOnly]
-	    [NativeDisableContainerSafetyRestriction]
-	    public NativeSlice<int> returnCode;
-        
-        public void Execute() {
+    [BurstCompile]
+    unsafe struct DecodeIndexSequenceJob : IJob
+    {
 
-	        // the minimum valid encoding is header, 1 byte per index and a 4-byte tail
-	        if (source.Length < 1 + indexCount + 4) {
-		        returnCode[0] = -2;
-		        return;
-	        }
+        [WriteOnly]
+        public NativeArray<byte> destination;
 
-	        if ((source[0] & 0xf0) != Decode.sequenceHeader) {
-		        returnCode[0] = -1;
-		        return;
-	        }
+        [ReadOnly]
+        public NativeSlice<byte> source;
 
-	        var version = source[0] & 0x0f;
-	        if (version > 1) {
-		        returnCode[0] = -1;
-		        return;
-	        }
+        public int indexCount;
+        public int indexSize;
 
-	        var buffer = (byte*) source.GetUnsafeReadOnlyPtr();
-	        var data = buffer + 1;
-	        var dataSafeEnd = buffer + source.Length - 4;
+        [WriteOnly]
+        [NativeDisableContainerSafetyRestriction]
+        public NativeSlice<int> returnCode;
 
-	        var last = new NativeArray<uint>(2,Allocator.Temp);
+        public void Execute()
+        {
 
-	        for (var i = 0; i < indexCount; ++i)
-	        {
-		        // make sure we have enough data to read
-		        // each index reads at most 5 bytes of data; there's a 4 byte tail after dataSafeEnd
-		        // after this we can be sure we can read without extra bounds checks
-		        if (data >= dataSafeEnd) {
-			        returnCode[0] = -2;
-			        return;
-		        }
+            // the minimum valid encoding is header, 1 byte per index and a 4-byte tail
+            if (source.Length < 1 + indexCount + 4)
+            {
+                returnCode[0] = -2;
+                return;
+            }
 
-		        var v = Decode.DecodeVByte(ref data);
+            if ((source[0] & 0xf0) != Decode.sequenceHeader)
+            {
+                returnCode[0] = -1;
+                return;
+            }
 
-		        // decode the index of the last baseline
-		        var current = v & 1;
-		        v >>= 1;
+            var version = source[0] & 0x0f;
+            if (version > 1)
+            {
+                returnCode[0] = -1;
+                return;
+            }
 
-		        // reconstruct index as a delta
-		        var d = (uint) ((v >> 1) ^ -(int)(v & 1));
-		        var index = last[(int)current] + d;
+            var buffer = (byte*)source.GetUnsafeReadOnlyPtr();
+            var data = buffer + 1;
+            var dataSafeEnd = buffer + source.Length - 4;
 
-		        // update last for the next iteration that uses it
-		        last[(int)current] = index;
+            var last = new NativeArray<uint>(2, Allocator.Temp);
 
-		        // TODO: optimize/inline
-		        if (indexSize == 2) {
-			        var dst = destination.Reinterpret<ushort>(sizeof(byte));
-			        dst[i] = (ushort)index;
-		        }
-		        else
-		        {
-			        var dst = destination.Reinterpret<uint>(sizeof(byte));
-			        dst[i] = index;
-		        }
-	        }
+            for (var i = 0; i < indexCount; ++i)
+            {
+                // make sure we have enough data to read
+                // each index reads at most 5 bytes of data; there's a 4 byte tail after dataSafeEnd
+                // after this we can be sure we can read without extra bounds checks
+                if (data >= dataSafeEnd)
+                {
+                    returnCode[0] = -2;
+                    return;
+                }
 
-	        last.Dispose();
+                var v = Decode.DecodeVByte(ref data);
 
-	        // we should've read all data bytes and stopped at the boundary between data and tail
-	        if (data != dataSafeEnd) {
-		        returnCode[0] = -3;
-		        return;
-	        }
+                // decode the index of the last baseline
+                var current = v & 1;
+                v >>= 1;
 
-		    returnCode[0] = 0;
+                // reconstruct index as a delta
+                var d = (uint)((v >> 1) ^ -(int)(v & 1));
+                var index = last[(int)current] + d;
+
+                // update last for the next iteration that uses it
+                last[(int)current] = index;
+
+                // TODO: optimize/inline
+                if (indexSize == 2)
+                {
+                    var dst = destination.Reinterpret<ushort>(sizeof(byte));
+                    dst[i] = (ushort)index;
+                }
+                else
+                {
+                    var dst = destination.Reinterpret<uint>(sizeof(byte));
+                    dst[i] = index;
+                }
+            }
+
+            last.Dispose();
+
+            // we should've read all data bytes and stopped at the boundary between data and tail
+            if (data != dataSafeEnd)
+            {
+                returnCode[0] = -3;
+                return;
+            }
+
+            returnCode[0] = 0;
         }
     }
 }
