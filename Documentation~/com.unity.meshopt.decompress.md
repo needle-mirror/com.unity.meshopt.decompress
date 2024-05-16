@@ -151,10 +151,30 @@ void Start() {
 
 A common use-case for meshoptimizer decompression is loading [glTF][gltf] files that utilize it via the [EXT_meshopt_compression][EXT_meshopt_compression] extension. The [glTFast][gltfast] package uses *meshoptimizer decompression for Unity* for this purpose. Consult it as a reference use-case.
 
+# Apple privacy manifest
+To publish applications for iOS, iPadOS, tvOS, and visionOS platforms on the App Store, you must include a [privacy manifest file](https://developer.apple.com/documentation/bundleresources/privacy_manifest_files) in your application as per [Apple’s privacy policy](https://www.apple.com/legal/privacy/en-ww/).
 
-[EXT_meshopt_compression]: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/EXT_meshopt_compression
-[gltf]: https://www.khronos.org/gltf
-[gltfast]: https://github.com/atteneder/glTFast
-[meshopt]: https://github.com/zeux/meshoptimizer
-[meshopt-compression]: https://github.com/zeux/meshoptimizer#vertexindex-buffer-compression
-[zeux]: https://github.com/zeux
+> [!NOTE]
+> **Note**:
+For information on creating a privacy manifest file to include in your application, refer to [Apple’s privacy manifest policy requirements](https://docs.unity3d.com/Manual/apple-privacy-manifest-policy.html).
+
+The [PrivacyInfo.xcprivacy](#PrivacyInfo.xcprivacy) manifest file outlines the required information, ensuring transparency in accordance with user privacy practices. This file lists the [types of data](https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_data_use_in_privacy_manifests) that your Unity applications, third-party SDKs, packages, and plug-ins collect, and the reasons for using certain [required reason API](https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api) (Apple documentation) categories. Apple also requires that certain domains be declared as [tracking](https://developer.apple.com/app-store/user-privacy-and-data-use/) (Apple documentation); these domains might be blocked unless a user provides consent.
+> [!WARNING]
+> **Important**: If your privacy manifest doesn’t declare the use of the required reason API by you or third-party SDKs, the App Store might reject your application. Read more about the [required reason API](https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api) in Apple’s documentation.
+
+The meshoptimizer decompression for Unity package does not collect data or engage in any data practices requiring disclosure in a privacy manifest file.
+
+> [!NOTE]
+> Note: The meshoptimizer decompression for Unity package is dependent on the following services. Refer to their manifest files for applicable data practices.
+>
+> * `com.unity.burst`
+> * `com.unity.mathematics`
+
+# Additional links
+
+* [EXT_meshopt_compression](https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/EXT_meshopt_compression)
+* [gltf](https://www.khronos.org/gltf)
+* [gltfast](https://github.com/atteneder/glTFast)
+* [meshopt](https://github.com/zeux/meshoptimizer)
+* [meshopt-compression](https://github.com/zeux/meshoptimizer#vertexindex-buffer-compression)
+* [zeux](https://github.com/zeux)
