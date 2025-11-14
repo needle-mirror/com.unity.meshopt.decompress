@@ -9,75 +9,53 @@ using UnityEngine.Assertions;
 
 namespace Meshoptimizer
 {
-
-    /// <summary>
-    /// Vertex attribute filter to be applied
-    /// </summary>
-    public enum Filter
-    {
-        /// <summary>
-        /// Don't use this value as parameter directly!
-        /// It's for deserialization purpose only.
-        /// </summary>
-        Undefined,
-        /// <summary>
-        /// No filter should be applied
-        /// </summary>
-        None,
-        /// <summary>
-        /// Apply octahedral filter, usually for normals
-        /// </summary>
-        Octahedral,
-        /// <summary>
-        /// Apply quaternion filter, usually for rotations
-        /// </summary>
-        Quaternion,
-        /// <summary>
-        /// Apply exponential filter, usually for positional data
-        /// </summary>
-        Exponential
-    }
-
-    /// <summary>
-    /// Mode defines the type of buffer to decode
-    /// </summary>
-    public enum Mode
-    {
-        /// <summary>
-        /// Don't use this value as parameter directly!
-        /// It's for deserialization purpose only.
-        /// </summary>
-        Undefined,
-        /// <summary>
-        /// Vertex attributes
-        /// </summary>
-        Attributes,
-        /// <summary>
-        /// Triangle indices buffer
-        /// </summary>
-        Triangles,
-        /// <summary>
-        /// Index sequence
-        /// </summary>
-        Indices,
-    }
-
     /// <summary>
     /// The Decode class provides static methods for decoding/decompressing meshoptimizer compressed
     /// vertex and index buffers.
     /// </summary>
     public static class Decode
     {
+        internal const byte k_IndexHeader = 0xe0;
+        internal const byte k_SequenceHeader = 0xd0;
 
-        #region Constants
-        internal const byte indexHeader = 0xe0;
-        internal const byte sequenceHeader = 0xd0;
+        internal const uint k_VertexBlockSizeBytes = 8192;
+        internal const uint k_VertexBlockMaxSize = 256;
+        internal const uint k_ByteGroupSize = 16;
+        internal const uint k_ByteGroupDecodeLimit = 24;
 
-        internal const uint kVertexBlockSizeBytes = 8192;
-        internal const uint kVertexBlockMaxSize = 256;
-        internal const uint kByteGroupSize = 16;
-        internal const uint kByteGroupDecodeLimit = 24;
-        #endregion Constants
+        /// <summary>
+        /// Creates a C# job that decompresses the provided source buffer into destination
+        /// </summary>
+        /// <param name="returnCode">An array with a length of one. The job's return code will end up at index 0</param>
+        /// <param name="destination">Destination buffer where the source will be decompressed into</param>
+        /// <param name="count">Number of elements (vertices/indices) to decode</param>
+        /// <param name="size">Size of elements (vertex/index) in bytes</param>
+        /// <param name="source">Source buffer</param>
+        /// <param name="mode">Compression mode</param>
+        /// <param name="filter">In case of <see cref="Mode.Attributes"/> mode, filter to be applied</param>
+        /// <returns>JobHandle for the created C# job</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown upon invalid mode/filter</exception>
+        [Obsolete("Use the overload that accepts a NativeArray<byte> source data")]
+        public static JobHandle DecodeGltfBuffer(
+            NativeSlice<int> returnCode,
+            NativeArray<byte> destination,
+            int count,
+            int size,
+            NativeSlice<byte> source,
+            Mode mode,
+            Filter filter = Filter.None
+        )
+        {
+            return DecodeGltfBuffer(
+                returnCode.AsNativeArray(),
+                destination,
+                count,
+                size,
+                source.AsNativeArray().AsReadOnly(),
+                mode,
+                filter
+                );
+        }
 
         /// <summary>
         /// Creates a C# job that decompresses the provided source buffer into destination
@@ -92,11 +70,11 @@ namespace Meshoptimizer
         /// <returns>JobHandle for the created C# job</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown upon invalid mode/filter</exception>
         public static JobHandle DecodeGltfBuffer(
-            NativeSlice<int> returnCode,
+            NativeArray<int> returnCode,
             NativeArray<byte> destination,
             int count,
             int size,
-            NativeSlice<byte> source,
+            NativeArray<byte>.ReadOnly source,
             Mode mode,
             Filter filter = Filter.None
         )
@@ -106,50 +84,84 @@ namespace Meshoptimizer
             switch (mode)
             {
                 case Mode.Attributes:
+                {
+                    var job = new DecodeVertexJob
                     {
-                        var job = new DecodeVertexJob
-                        {
-                            destination = destination,
-                            vertexCount = (uint)count,
-                            vertexSize = (uint)size,
-                            source = source,
-                            filter = filter,
-                            returnCode = returnCode
-                        };
-                        return job.Schedule();
-                    }
+                        destination = destination,
+                        vertexCount = (uint)count,
+                        vertexSize = (uint)size,
+                        source = source,
+                        filter = filter,
+                        returnCode = returnCode
+                    };
+                    return job.Schedule();
+                }
                 case Mode.Triangles:
+                {
+                    var job = new DecodeIndexTrianglesJob
                     {
-                        var job = new DecodeIndexTrianglesJob
-                        {
-                            destination = destination,
-                            indexCount = count,
-                            indexSize = size,
-                            source = source,
-                            returnCode = returnCode,
-                            triangleWriter = DecodeIndexTrianglesJob.GetTriangleWriter(size)
-                        };
-                        return job.Schedule();
-                    }
+                        destination = destination,
+                        indexCount = count,
+                        indexSize = size,
+                        source = source,
+                        returnCode = returnCode,
+                        triangleWriter = DecodeIndexTrianglesJob.GetTriangleWriter(size)
+                    };
+                    return job.Schedule();
+                }
                 case Mode.Indices:
+                {
+                    var job = new DecodeIndexSequenceJob
                     {
-                        var job = new DecodeIndexSequenceJob
-                        {
-                            destination = destination,
-                            indexCount = count,
-                            indexSize = size,
-                            source = source,
-                            returnCode = returnCode
-                        };
-                        return job.Schedule();
-                    }
+                        destination = destination,
+                        indexCount = count,
+                        indexSize = size,
+                        source = source,
+                        returnCode = returnCode
+                    };
+                    return job.Schedule();
+                }
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
             }
         }
 
         /// <summary>
-        /// Synchronous variant of <seealso cref="DecodeGltfBuffer"/> (decodes on the current thread)
+        /// Synchronous variant of <see cref="DecodeGltfBuffer(NativeSlice{int},NativeArray{byte},int,int,NativeSlice{byte},Mode,Filter)"/> (decodes on the current thread)
+        /// </summary>
+        /// <param name="destination">Destination buffer where the source will be decompressed into</param>
+        /// <param name="count">Number of elements (vertices/indices) to decode</param>
+        /// <param name="size">Size of elements (vertex/index) in bytes</param>
+        /// <param name="source">Source buffer</param>
+        /// <param name="mode">Compression mode</param>
+        /// <param name="filter">In case of <see cref="Mode.Attributes"/> mode, filter to be applied</param>
+        /// <returns>Return code that is 0 in case of success</returns>
+        [Obsolete("Use the overload that accepts a NativeArray<byte>.ReadOnly source data")]
+        public static int DecodeGltfBufferSync(
+            NativeArray<byte> destination,
+            int count,
+            int size,
+            NativeSlice<byte> source,
+            Mode mode,
+            Filter filter = Filter.None
+        )
+        {
+            using var returnCode = new NativeArray<int>(1, Allocator.TempJob);
+            var jobHandle = DecodeGltfBuffer(
+                returnCode,
+                destination,
+                count,
+                size,
+                source,
+                mode,
+                filter
+            );
+            jobHandle.Complete();
+            return returnCode[0];
+        }
+
+        /// <summary>
+        /// Synchronous variant of <see cref="DecodeGltfBuffer(NativeArray{int},NativeArray{byte},int,int,NativeArray{byte}.ReadOnly,Mode,Filter)"/> (decodes on the current thread)
         /// </summary>
         /// <param name="destination">Destination buffer where the source will be decompressed into</param>
         /// <param name="count">Number of elements (vertices/indices) to decode</param>
@@ -162,25 +174,23 @@ namespace Meshoptimizer
             NativeArray<byte> destination,
             int count,
             int size,
-            NativeSlice<byte> source,
+            NativeArray<byte>.ReadOnly source,
             Mode mode,
             Filter filter = Filter.None
         )
         {
-            using (var returnCode = new NativeArray<int>(1, Allocator.TempJob))
-            {
-                var jobHandle = DecodeGltfBuffer(
-                    returnCode,
-                    destination,
-                    count,
-                    size,
-                    source,
-                    mode,
-                    filter
-                );
-                jobHandle.Complete();
-                return returnCode[0];
-            }
+            using var returnCode = new NativeArray<int>(1, Allocator.TempJob);
+            var jobHandle = DecodeGltfBuffer(
+                returnCode,
+                destination,
+                count,
+                size,
+                source,
+                mode,
+                filter
+            );
+            jobHandle.Complete();
+            return returnCode[0];
         }
 
         internal static sbyte UnZigZag8(byte v)

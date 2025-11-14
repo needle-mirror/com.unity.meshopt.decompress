@@ -13,26 +13,24 @@ namespace Meshoptimizer
     [BurstCompile]
     unsafe struct DecodeVertexJob : IJob
     {
-
-        #region Constants
         const float k_SqrtHalf = 0.707106781186548f;
         const byte k_VertexHeader = 0xa0;
         const uint k_KTailMaxSize = 32;
-        #endregion
 
         // [WriteOnly] // TODO: Make filtering a separate job and add WriteOnly attribute
         public NativeArray<byte> destination;
 
         [ReadOnly]
-        public NativeSlice<byte> source;
+        public NativeArray<byte>.ReadOnly source;
 
         public uint vertexCount;
         public uint vertexSize;
         public Filter filter;
 
-        [WriteOnly]
-        [NativeDisableContainerSafetyRestriction]
-        public NativeSlice<int> returnCode;
+        // Safety restrictions are lifted so that one NativeArray can be used
+        // for multiple DecodeVertexJob jobs via GetSubArray().
+        [WriteOnly, NativeDisableContainerSafetyRestriction]
+        public NativeArray<int> returnCode;
 
         public void Execute()
         {
@@ -162,7 +160,7 @@ namespace Meshoptimizer
             switch (bitsLog2)
             {
                 case 0:
-                    UnsafeUtility.MemSet(buffer, 0, Decode.kByteGroupSize);
+                    UnsafeUtility.MemSet(buffer, 0, Decode.k_ByteGroupSize);
                     return data;
                 case 1:
                     dataVar = data + 4;
@@ -189,8 +187,8 @@ namespace Meshoptimizer
 
                     return dataVar;
                 case 3:
-                    UnsafeUtility.MemCpy(buffer, data, Decode.kByteGroupSize);
-                    return data + Decode.kByteGroupSize;
+                    UnsafeUtility.MemCpy(buffer, data, Decode.k_ByteGroupSize);
+                    return data + Decode.k_ByteGroupSize;
                 default:
                     return null;
             }
@@ -199,24 +197,24 @@ namespace Meshoptimizer
         static byte* DecodeBytes(byte* data, byte* dataEnd, byte* buffer, uint bufferSize)
         {
 
-            Assert.AreEqual(0, bufferSize % Decode.kByteGroupSize);
+            Assert.AreEqual(0, bufferSize % Decode.k_ByteGroupSize);
 
             var header = data;
 
             // round number of groups to 4 to get number of header bytes
-            var headerSize = (bufferSize / Decode.kByteGroupSize + 3) / 4;
+            var headerSize = (bufferSize / Decode.k_ByteGroupSize + 3) / 4;
 
             if ((uint)(dataEnd - data) < headerSize)
                 return null;
 
             data += headerSize;
 
-            for (uint i = 0; i < bufferSize; i += Decode.kByteGroupSize)
+            for (uint i = 0; i < bufferSize; i += Decode.k_ByteGroupSize)
             {
-                if ((uint)(dataEnd - data) < Decode.kByteGroupDecodeLimit)
+                if ((uint)(dataEnd - data) < Decode.k_ByteGroupDecodeLimit)
                     return null;
 
-                var headerOffset = i / Decode.kByteGroupSize;
+                var headerOffset = i / Decode.k_ByteGroupSize;
 
                 var bitsLog2 = (header[headerOffset / 4] >> (int)(((headerOffset % 4) * 2)) & 3);
 
@@ -232,12 +230,12 @@ namespace Meshoptimizer
 
         static byte* DecodeBlock(byte* data, byte* dataEnd, byte* vertexData, uint vertexCount, uint vertexSize, byte* lastVertex)
         {
-            Assert.IsTrue(vertexCount > 0 && vertexCount <= Decode.kVertexBlockMaxSize);
+            Assert.IsTrue(vertexCount > 0 && vertexCount <= Decode.k_VertexBlockMaxSize);
 
-            var buffer = new NativeArray<byte>((int)Decode.kVertexBlockMaxSize, Allocator.Temp);
-            var transposed = new NativeArray<byte>((int)Decode.kVertexBlockSizeBytes, Allocator.Temp);
+            var buffer = new NativeArray<byte>((int)Decode.k_VertexBlockMaxSize, Allocator.Temp);
+            var transposed = new NativeArray<byte>((int)Decode.k_VertexBlockSizeBytes, Allocator.Temp);
 
-            var vertexCountAligned = (vertexCount + Decode.kByteGroupSize - 1) & ~(Decode.kByteGroupSize - 1);
+            var vertexCountAligned = (vertexCount + Decode.k_ByteGroupSize - 1) & ~(Decode.k_ByteGroupSize - 1);
 
             for (uint k = 0; k < vertexSize; ++k)
             {
@@ -276,13 +274,13 @@ namespace Meshoptimizer
         static uint GetVertexBlockSize(uint vertexSize)
         {
             // make sure the entire block fits into the scratch buffer
-            var result = Decode.kVertexBlockSizeBytes / vertexSize;
+            var result = Decode.k_VertexBlockSizeBytes / vertexSize;
 
             // align to byte group size; we encode each byte as a byte group
             // if vertex block is misaligned, it results in wasted bytes, so just truncate the block size
-            result &= ~(Decode.kByteGroupSize - 1);
+            result &= ~(Decode.k_ByteGroupSize - 1);
 
-            return (result < Decode.kVertexBlockMaxSize) ? result : Decode.kVertexBlockMaxSize;
+            return (result < Decode.k_VertexBlockMaxSize) ? result : Decode.k_VertexBlockMaxSize;
         }
 
         internal static void ApplyExponentialFilter(NativeArray<byte> target, uint vertexCount, uint vertexSize)

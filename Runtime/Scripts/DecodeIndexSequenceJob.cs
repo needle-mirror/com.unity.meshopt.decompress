@@ -11,19 +11,17 @@ namespace Meshoptimizer
     [BurstCompile]
     unsafe struct DecodeIndexSequenceJob : IJob
     {
-
         [WriteOnly]
         public NativeArray<byte> destination;
 
         [ReadOnly]
-        public NativeSlice<byte> source;
+        public NativeArray<byte>.ReadOnly source;
 
         public int indexCount;
         public int indexSize;
 
-        [WriteOnly]
-        [NativeDisableContainerSafetyRestriction]
-        public NativeSlice<int> returnCode;
+        [WriteOnly, NativeDisableContainerSafetyRestriction]
+        public NativeArray<int> returnCode;
 
         public void Execute()
         {
@@ -35,7 +33,7 @@ namespace Meshoptimizer
                 return;
             }
 
-            if ((source[0] & 0xf0) != Decode.sequenceHeader)
+            if ((source[0] & 0xf0) != Decode.k_SequenceHeader)
             {
                 returnCode[0] = -1;
                 return;
@@ -54,38 +52,62 @@ namespace Meshoptimizer
 
             var last = new NativeArray<uint>(2, Allocator.Temp);
 
-            for (var i = 0; i < indexCount; ++i)
+            if (indexSize == 2)
             {
-                // make sure we have enough data to read
-                // each index reads at most 5 bytes of data; there's a 4 byte tail after dataSafeEnd
-                // after this we can be sure we can read without extra bounds checks
-                if (data >= dataSafeEnd)
+                for (var i = 0; i < indexCount; ++i)
                 {
-                    returnCode[0] = -2;
-                    return;
-                }
+                    // make sure we have enough data to read
+                    // each index reads at most 5 bytes of data; there's a 4 byte tail after dataSafeEnd
+                    // after this we can be sure we can read without extra bounds checks
+                    if (data >= dataSafeEnd)
+                    {
+                        returnCode[0] = -2;
+                        return;
+                    }
 
-                var v = Decode.DecodeVByte(ref data);
+                    var v = Decode.DecodeVByte(ref data);
 
-                // decode the index of the last baseline
-                var current = v & 1;
-                v >>= 1;
+                    // decode the index of the last baseline
+                    var current = v & 1;
+                    v >>= 1;
 
-                // reconstruct index as a delta
-                var d = (uint)((v >> 1) ^ -(int)(v & 1));
-                var index = last[(int)current] + d;
+                    // reconstruct index as a delta
+                    var d = (uint)((v >> 1) ^ -(int)(v & 1));
+                    var index = last[(int)current] + d;
 
-                // update last for the next iteration that uses it
-                last[(int)current] = index;
+                    // update last for the next iteration that uses it
+                    last[(int)current] = index;
 
-                // TODO: optimize/inline
-                if (indexSize == 2)
-                {
                     var dst = destination.Reinterpret<ushort>(sizeof(byte));
                     dst[i] = (ushort)index;
                 }
-                else
+            }
+            else
+            {
+                for (var i = 0; i < indexCount; ++i)
                 {
+                    // make sure we have enough data to read
+                    // each index reads at most 5 bytes of data; there's a 4 byte tail after dataSafeEnd
+                    // after this we can be sure we can read without extra bounds checks
+                    if (data >= dataSafeEnd)
+                    {
+                        returnCode[0] = -2;
+                        return;
+                    }
+
+                    var v = Decode.DecodeVByte(ref data);
+
+                    // decode the index of the last baseline
+                    var current = v & 1;
+                    v >>= 1;
+
+                    // reconstruct index as a delta
+                    var d = (uint)((v >> 1) ^ -(int)(v & 1));
+                    var index = last[(int)current] + d;
+
+                    // update last for the next iteration that uses it
+                    last[(int)current] = index;
+
                     var dst = destination.Reinterpret<uint>(sizeof(byte));
                     dst[i] = index;
                 }

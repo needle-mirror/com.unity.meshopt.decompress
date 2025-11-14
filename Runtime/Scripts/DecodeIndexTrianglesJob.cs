@@ -13,19 +13,17 @@ namespace Meshoptimizer
     [BurstCompile]
     unsafe struct DecodeIndexTrianglesJob : IJob
     {
-
         [WriteOnly]
         public NativeArray<byte> destination;
 
         [ReadOnly]
-        public NativeSlice<byte> source;
+        public NativeArray<byte>.ReadOnly source;
 
         public int indexCount;
         public int indexSize;
 
-        [WriteOnly]
-        [NativeDisableContainerSafetyRestriction]
-        public NativeSlice<int> returnCode;
+        [WriteOnly, NativeDisableContainerSafetyRestriction]
+        public NativeArray<int> returnCode;
 
         public FunctionPointer<WriteTriangleDelegate> triangleWriter;
 
@@ -43,7 +41,7 @@ namespace Meshoptimizer
             }
 
             var firstByte = source[0];
-            if ((firstByte & 0xf0) != Decode.indexHeader)
+            if ((firstByte & 0xf0) != Decode.k_IndexHeader)
             {
                 returnCode[0] = -1;
                 return;
@@ -93,7 +91,6 @@ namespace Meshoptimizer
                     var fe = (byte)(codeTri >> 4);
 
                     // fifo reads are wrapped around 16 entry buffer
-                    // var tmpIndex = ;
                     var fifoIndex = (edgeFifoOffset - 1 - fe) & 0xf;
                     var a = edgeFifo[(int)fifoIndex];
                     var b = edgeFifo[(int)fifoIndex | 0x10];

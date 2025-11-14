@@ -1,0 +1,16 @@
+{
+    "name": "Unity.Meshopt.Decompress.Documentation.Examples",
+    "rootNamespace": "Meshoptimizer.Documentation.Examples",
+    "references": [
+        "GUID:84ca1e7ada6c144debb2e417c8dbe9a5"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

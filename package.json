@@ -1,30 +1,31 @@
 {
   "name": "com.unity.meshopt.decompress",
-  "version": "0.1.0-preview.7",
-  "displayName": "meshoptimizer decompression for Unity",
-  "description": "Use the meshoptimizer decompression for Unity package to decode meshoptimizer compressed index/vertex buffers efficiently in Burst-compiled C# Jobs off the main thread.",
-  "unity": "2019.4",
+  "version": "0.2.0-exp.1",
+  "displayName": "meshoptimizer mesh compression for Unity",
+  "description": "Use the 'meshoptimizer' mesh compression for Unity package to efficiently decode meshoptimizer compressed index/vertex buffers.",
+  "unity": "2022.3",
   "keywords": [
     "mesh",
     "compress"
   ],
   "dependencies": {
-    "com.unity.mathematics": "1.2.1",
-    "com.unity.burst": "1.4.11"
+    "com.unity.mathematics": "1.2.6",
+    "com.unity.burst": "1.8.24"
   },
-  "type": "library",
   "relatedPackages": {
-    "com.unity.meshopt.decompress.tests": "0.1.0-preview.7"
+    "com.unity.meshopt.decompress.tests": "0.0.0"
   },
+  "unityRelease": "67f2",
   "_upm": {
-    "changelog": "### Added\n- Added Apple Privacy Manifest documentation."
+    "changelog": "### Added\n- [DecodeGltfBuffer](xref:Meshoptimizer.Decode.DecodeGltfBuffer*) and [DecodeGltfBufferSync](xref:Meshoptimizer.Decode.DecodeGltfBufferSync*) overloads that allow loading from [NativeArray&lt;byte&gt;.ReadOnly](xref:Unity.Collections.NativeArray`1.ReadOnly). This makes it easier to load meshopt compressed data from existing, native memory directly without the need to create a copy in managed memory (e.g. by using [DownloadHandler.GetNativeData](xref:UnityEngine.Networking.DownloadHandler.GetNativeData) or [ConvertExistingDataToNativeArray](xref:Unity.Collections.LowLevel.Unsafe.NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray(System.Void*,System.Int32,Unity.Collections.Allocator))).\n- [EditorConfig](https://editorconfig.org/) for keeping a consistent code-style.\n- (CI) Automatically generated CI jobs (via Wrench/RecipeEngine; required for PackageWorks).\n- (CI) Code coverage.\n- (Test) DecodeIndexSequenceJob performance test.\n- (Test) Package coherence tests.\n\n### Changed\n- Renamed package to *meshoptimizer mesh compression for Unity*\n- Licensed under Unity Terms of Service (see <https://unity.com/legal>)\n- Raised minimum required Unity version to 2022 xLTS.\n- Raised dependency versions\n  - [Mathematics][Mathematics] to 1.2.6\n  - [Burst][Burst] to 1.8.24\n- Changed source code repository structure to [monorepo](https://en.wikipedia.org/wiki/Monorepo).\n- (CI) Code format check is performed by dotnet format now.\n- Increased performance of index sequence decoding around 10%.\n\n### Fixed\n- Removed invalid tag `seealso` from xml doc summary.\n- Invalid code references in XML docs.\n- Broken links in package documentation.\n- Example code compilation.\n- Broken link to Apple privacy manifest in documentation.\n\n### Deprecated\n- [DecodeGltfBuffer](xref:Meshoptimizer.Decode.DecodeGltfBuffer*) and [DecodeGltfBufferSync](xref:Meshoptimizer.Decode.DecodeGltfBufferSync*) overloads that use [NativeSlice<byte>](xref:Unity.Collections.NativeSlice`1) as parameters for no good reason."
   },
   "upmCi": {
-    "footprint": "9513faa1a203c87cb4a6012fc20b3240f7e1037d"
+    "footprint": "6c65f52664a742969057e10f8de5b28cda75670a"
   },
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.meshopt.decompress@0.2/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.meshopt.decompress.git",
     "type": "git",
-    "revision": "c46644f9457c57b97a1b1d2959c365bc3b07835f"
+    "revision": "0aaf1e3324e31a26fee56862b4b480a2e792a5db"
   }
 }
