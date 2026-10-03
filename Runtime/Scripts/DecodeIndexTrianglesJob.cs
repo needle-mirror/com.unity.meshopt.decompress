@@ -1,5 +1,4 @@
 using System;
-using AOT;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -25,8 +24,6 @@ namespace Meshoptimizer
         [WriteOnly, NativeDisableContainerSafetyRestriction]
         public NativeArray<int> returnCode;
 
-        public FunctionPointer<WriteTriangleDelegate> triangleWriter;
-
         public void Execute()
         {
 
@@ -48,14 +45,17 @@ namespace Meshoptimizer
             }
 
             var version = (byte)(firstByte & 0x0f);
-            if (version > 1)
+            if (version > Decode.k_DecodeIndexVersion)
             {
                 returnCode[0] = -1;
                 return;
             }
 
-            var edgeFifo = InitFifo(32);
-            var vertexFifo = InitFifo(16);
+            // edge fifo: 16 entries of edge start (a) followed by 16 entries of edge end (b)
+            var edgeFifo = stackalloc uint[32];
+            var vertexFifo = stackalloc uint[16];
+            UnsafeUtility.MemSet(edgeFifo, 0xff, 32 * sizeof(uint));
+            UnsafeUtility.MemSet(vertexFifo, 0xff, 16 * sizeof(uint));
 
             uint edgeFifoOffset = 0;
             uint vertexFifoOffset = 0;
@@ -63,84 +63,80 @@ namespace Meshoptimizer
             uint next = 0;
             uint last = 0;
 
-            var fecMax = version >= 1 ? (byte)13 : (byte)15;
+            var fecMax = version >= 1 ? 13 : 15;
 
             var buffer = (byte*)source.GetUnsafeReadOnlyPtr();
             // since we store 16-byte codeAux table at the end, triangle data has to begin before dataSafeEnd
             var code = buffer + 1;
-            var data = code + indexCount / 3;
+            var codeEnd = code + indexCount / 3;
+            var data = codeEnd;
             var dataSafeEnd = buffer + source.Length - 16;
 
-            var destinationPtr = destination.GetUnsafePtr();
+            var codeAuxTable = dataSafeEnd;
 
-            for (uint i = 0; i < indexCount; i += 3)
+            var destinationPtr = (byte*)destination.GetUnsafePtr();
+
+            // each triangle reads at most 16 bytes of data: 1b for codeAux and 5b for each free index
+            while (code < codeEnd)
             {
-                // make sure we have enough data to read for a triangle
-                // each triangle reads at most 16 bytes of data: 1b for codeAux and 5b for each free index
-                // after this we can be sure we can read without extra bounds checks
-                if (data > dataSafeEnd)
-                {
-                    returnCode[0] = -2;
-                    return;
-                }
-
                 var codeTri = *code++;
 
                 if (codeTri < 0xf0)
                 {
-                    var fe = (byte)(codeTri >> 4);
+                    var fe = codeTri >> 4;
 
                     // fifo reads are wrapped around 16 entry buffer
-                    var fifoIndex = (edgeFifoOffset - 1 - fe) & 0xf;
-                    var a = edgeFifo[(int)fifoIndex];
-                    var b = edgeFifo[(int)fifoIndex | 0x10];
+                    var fifoIndex = (edgeFifoOffset - 1 - (uint)fe) & 15;
+                    var a = edgeFifo[fifoIndex];
+                    var b = edgeFifo[fifoIndex | 0x10];
+                    uint c;
 
-                    var fec = (byte)(codeTri & 15);
+                    var fec = codeTri & 15;
 
                     // note: this is the most common path in the entire decoder
                     // inside this if we try to stay branch-less since these aren't predictable
                     if (fec < fecMax)
                     {
                         // fifo reads are wrapped around 16 entry buffer
-                        var cf = vertexFifo[(int)((vertexFifoOffset - 1 - fec) & 15)];
-                        var c = (fec == 0) ? next : cf;
+                        var cf = vertexFifo[(vertexFifoOffset - 1 - (uint)fec) & 15];
+                        c = (fec == 0) ? next : cf;
 
                         var fec0 = fec == 0 ? 1u : 0u;
                         next += fec0;
 
-                        // output triangle
-                        triangleWriter.Invoke(destinationPtr, i, a, b, c);
-
-                        // push vertex/edge fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
-                        PushVertexFifo(ref vertexFifo, c, ref vertexFifoOffset, fec0);
-
-                        PushEdgeFifo(ref edgeFifo, c, b, ref edgeFifoOffset);
-                        PushEdgeFifo(ref edgeFifo, a, c, ref edgeFifoOffset);
+                        // push vertex fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
+                        PushVertexFifo(vertexFifo, c, ref vertexFifoOffset, fec0);
                     }
                     else
                     {
-                        uint c;
+                        // make sure we have enough data to read for a triangle; this check covers worst case advance
+                        if (data > dataSafeEnd)
+                        {
+                            returnCode[0] = -2;
+                            return;
+                        }
 
-                        // fec - (fec ^ 3) decodes 13, 14 into -1, 1
+                        // fec * 2 - 27 decodes 13, 14 into -1, 1
                         // note that we need to update the last index since free indices are delta-encoded
-                        last = c = (fec != 15) ? (uint)(last + (fec - (fec ^ 3))) : DecodeIndex(ref data, last);
+                        last = c = (fec != 15) ? (uint)(last + (fec * 2 - 27)) : DecodeIndex(ref data, last);
 
-                        // output triangle
-                        triangleWriter.Invoke(destinationPtr, i, a, b, c);
-
-                        // push vertex/edge fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
-                        PushVertexFifo(ref vertexFifo, c, ref vertexFifoOffset);
-
-                        PushEdgeFifo(ref edgeFifo, c, b, ref edgeFifoOffset);
-                        PushEdgeFifo(ref edgeFifo, a, c, ref edgeFifoOffset);
+                        // push vertex fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
+                        PushVertexFifo(vertexFifo, c, ref vertexFifoOffset);
                     }
+
+                    // push edge fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
+                    PushEdgeFifo(edgeFifo, c, b, ref edgeFifoOffset);
+                    PushEdgeFifo(edgeFifo, a, c, ref edgeFifoOffset);
+
+                    // output triangle
+                    destinationPtr = WriteTriangle(destinationPtr, indexSize, a, b, c);
                 }
                 else
                 {
                     // fast path: read codeAux from the table
                     if (codeTri < 0xfe)
                     {
-                        var codeAux = dataSafeEnd[codeTri & 15];
+                        var codeAux = codeAuxTable[codeTri & 15];
 
                         // note: table can't contain feb/fec=15
                         var feb = codeAux >> 4;
@@ -150,32 +146,39 @@ namespace Meshoptimizer
                         // also note that we increment next for all three vertices before decoding indices - this matches encoder behavior
                         var a = next++;
 
-                        var bf = vertexFifo[(int)((vertexFifoOffset - feb) & 15)];
+                        var bf = vertexFifo[(vertexFifoOffset - (uint)feb) & 15];
                         var b = (feb == 0) ? next : bf;
 
                         var feb0 = feb == 0 ? 1u : 0u;
                         next += feb0;
 
-                        var cf = vertexFifo[(int)((vertexFifoOffset - fec) & 15)];
+                        var cf = vertexFifo[(vertexFifoOffset - (uint)fec) & 15];
                         var c = (fec == 0) ? next : cf;
 
                         var fec0 = fec == 0 ? 1u : 0u;
                         next += fec0;
 
                         // output triangle
-                        triangleWriter.Invoke(destinationPtr, i, a, b, c);
+                        destinationPtr = WriteTriangle(destinationPtr, indexSize, a, b, c);
 
                         // push vertex/edge fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
-                        PushVertexFifo(ref vertexFifo, a, ref vertexFifoOffset);
-                        PushVertexFifo(ref vertexFifo, b, ref vertexFifoOffset, feb0);
-                        PushVertexFifo(ref vertexFifo, c, ref vertexFifoOffset, fec0);
+                        PushVertexFifo(vertexFifo, a, ref vertexFifoOffset);
+                        PushVertexFifo(vertexFifo, b, ref vertexFifoOffset, feb0);
+                        PushVertexFifo(vertexFifo, c, ref vertexFifoOffset, fec0);
 
-                        PushEdgeFifo(ref edgeFifo, b, a, ref edgeFifoOffset);
-                        PushEdgeFifo(ref edgeFifo, c, b, ref edgeFifoOffset);
-                        PushEdgeFifo(ref edgeFifo, a, c, ref edgeFifoOffset);
+                        PushEdgeFifo(edgeFifo, b, a, ref edgeFifoOffset);
+                        PushEdgeFifo(edgeFifo, c, b, ref edgeFifoOffset);
+                        PushEdgeFifo(edgeFifo, a, c, ref edgeFifoOffset);
                     }
                     else
                     {
+                        // make sure we have enough data to read for a triangle; this check covers worst case advance
+                        if (data > dataSafeEnd)
+                        {
+                            returnCode[0] = -2;
+                            return;
+                        }
+
                         // slow path: read a full byte for codeAux instead of using a table lookup
                         var codeAux = *data++;
 
@@ -190,8 +193,8 @@ namespace Meshoptimizer
                         // fifo reads are wrapped around 16 entry buffer
                         // also note that we increment next for all three vertices before decoding indices - this matches encoder behavior
                         var a = (fea == 0) ? next++ : 0;
-                        var b = (feb == 0) ? next++ : vertexFifo[(int)((vertexFifoOffset - feb) & 15)];
-                        var c = (fec == 0) ? next++ : vertexFifo[(int)((vertexFifoOffset - fec) & 15)];
+                        var b = (feb == 0) ? next++ : vertexFifo[(vertexFifoOffset - (uint)feb) & 15];
+                        var c = (fec == 0) ? next++ : vertexFifo[(vertexFifoOffset - (uint)fec) & 15];
 
                         // note that we need to update the last index since free indices are delta-encoded
                         if (fea == 15)
@@ -204,22 +207,19 @@ namespace Meshoptimizer
                             last = c = DecodeIndex(ref data, last);
 
                         // output triangle
-                        triangleWriter.Invoke(destinationPtr, i, a, b, c);
+                        destinationPtr = WriteTriangle(destinationPtr, indexSize, a, b, c);
 
                         // push vertex/edge fifo must match the encoding step *exactly* otherwise the data will not be decoded correctly
-                        PushVertexFifo(ref vertexFifo, a, ref vertexFifoOffset);
-                        PushVertexFifo(ref vertexFifo, b, ref vertexFifoOffset, (feb == 0) || (feb == 15) ? 1u : 0u);
-                        PushVertexFifo(ref vertexFifo, c, ref vertexFifoOffset, (fec == 0) || (fec == 15) ? 1u : 0u);
+                        PushVertexFifo(vertexFifo, a, ref vertexFifoOffset);
+                        PushVertexFifo(vertexFifo, b, ref vertexFifoOffset, (feb == 0) || (feb == 15) ? 1u : 0u);
+                        PushVertexFifo(vertexFifo, c, ref vertexFifoOffset, (fec == 0) || (fec == 15) ? 1u : 0u);
 
-                        PushEdgeFifo(ref edgeFifo, b, a, ref edgeFifoOffset);
-                        PushEdgeFifo(ref edgeFifo, c, b, ref edgeFifoOffset);
-                        PushEdgeFifo(ref edgeFifo, a, c, ref edgeFifoOffset);
+                        PushEdgeFifo(edgeFifo, b, a, ref edgeFifoOffset);
+                        PushEdgeFifo(edgeFifo, c, b, ref edgeFifoOffset);
+                        PushEdgeFifo(edgeFifo, a, c, ref edgeFifoOffset);
                     }
                 }
             }
-
-            edgeFifo.Dispose();
-            vertexFifo.Dispose();
 
             // we should've read all data bytes and stopped at the boundary between data and codeAux table
             if (data != dataSafeEnd)
@@ -239,64 +239,38 @@ namespace Meshoptimizer
             return last + d;
         }
 
-        public delegate void WriteTriangleDelegate(void* dst, uint offset, uint a, uint b, uint c);
-        static FunctionPointer<WriteTriangleDelegate> s_WriteTriangleUInt16Method;
-        static FunctionPointer<WriteTriangleDelegate> s_WriteTriangleUInt32Method;
-
-        internal static FunctionPointer<WriteTriangleDelegate> GetTriangleWriter(int indexSize)
+        static byte* WriteTriangle(byte* destination, int indexSize, uint a, uint b, uint c)
         {
             if (indexSize == 2)
             {
-                if (!s_WriteTriangleUInt16Method.IsCreated)
-                {
-                    s_WriteTriangleUInt16Method = BurstCompiler.CompileFunctionPointer<WriteTriangleDelegate>(WriteTriangleUInt16);
-                }
-                return s_WriteTriangleUInt16Method;
-            }
+                var tri = (ushort*)destination;
+                tri[0] = (ushort)a;
+                tri[1] = (ushort)b;
+                tri[2] = (ushort)c;
 
-            if (!s_WriteTriangleUInt32Method.IsCreated)
+                return (byte*)(tri + 3);
+            }
+            else
             {
-                s_WriteTriangleUInt32Method = BurstCompiler.CompileFunctionPointer<WriteTriangleDelegate>(WriteTriangleUInt32);
+                var tri = (uint*)destination;
+                tri[0] = a;
+                tri[1] = b;
+                tri[2] = c;
+
+                return (byte*)(tri + 3);
             }
-            return s_WriteTriangleUInt32Method;
         }
 
-        [BurstCompile, MonoPInvokeCallback(typeof(WriteTriangleDelegate))]
-        static void WriteTriangleUInt16(void* dst, uint offset, uint a, uint b, uint c)
+        static void PushEdgeFifo(uint* fifo, uint a, uint b, ref uint offset)
         {
-            ((ushort*)dst)[(int)offset] = (ushort)a;
-            ((ushort*)dst)[(int)(offset + 1)] = (ushort)b;
-            ((ushort*)dst)[(int)(offset + 2)] = (ushort)c;
-        }
-
-        [BurstCompile, MonoPInvokeCallback(typeof(WriteTriangleDelegate))]
-        static void WriteTriangleUInt32(void* dst, uint offset, uint a, uint b, uint c)
-        {
-            ((uint*)dst)[(int)offset] = a;
-            ((uint*)dst)[(int)(offset + 1)] = b;
-            ((uint*)dst)[(int)(offset + 2)] = c;
-        }
-
-        static NativeArray<uint> InitFifo(uint length)
-        {
-            var fifo = new NativeArray<uint>((int)length, Allocator.Temp);
-            for (var i = 0; i < fifo.Length; i++)
-            {
-                fifo[i] = uint.MaxValue;
-            }
-            return fifo;
-        }
-
-        static void PushEdgeFifo(ref NativeArray<uint> fifo, uint a, uint b, ref uint offset)
-        {
-            fifo[(int)offset] = a;
-            fifo[(int)(offset | 0x10)] = b;
+            fifo[offset] = a;
+            fifo[offset | 0x10] = b;
             offset = (offset + 1) & 15;
         }
 
-        static void PushVertexFifo(ref NativeArray<uint> fifo, uint v, ref uint offset, uint cond = 1)
+        static void PushVertexFifo(uint* fifo, uint v, ref uint offset, uint cond = 1)
         {
-            fifo[(int)offset] = v;
+            fifo[offset] = v;
             offset = (offset + cond) & 15;
         }
     }

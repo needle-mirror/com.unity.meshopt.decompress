@@ -40,7 +40,7 @@ namespace Meshoptimizer
             }
 
             var version = source[0] & 0x0f;
-            if (version > 1)
+            if (version > Decode.k_DecodeIndexVersion)
             {
                 returnCode[0] = -1;
                 return;
@@ -50,7 +50,11 @@ namespace Meshoptimizer
             var data = buffer + 1;
             var dataSafeEnd = buffer + source.Length - 4;
 
-            var last = new NativeArray<uint>(2, Allocator.Temp);
+            var destinationPtr = destination.GetUnsafePtr();
+
+            var last = stackalloc uint[2];
+            last[0] = 0;
+            last[1] = 0;
 
             if (indexSize == 2)
             {
@@ -73,13 +77,12 @@ namespace Meshoptimizer
 
                     // reconstruct index as a delta
                     var d = (uint)((v >> 1) ^ -(int)(v & 1));
-                    var index = last[(int)current] + d;
+                    var index = last[current] + d;
 
                     // update last for the next iteration that uses it
-                    last[(int)current] = index;
+                    last[current] = index;
 
-                    var dst = destination.Reinterpret<ushort>(sizeof(byte));
-                    dst[i] = (ushort)index;
+                    ((ushort*)destinationPtr)[i] = (ushort)index;
                 }
             }
             else
@@ -103,17 +106,14 @@ namespace Meshoptimizer
 
                     // reconstruct index as a delta
                     var d = (uint)((v >> 1) ^ -(int)(v & 1));
-                    var index = last[(int)current] + d;
+                    var index = last[current] + d;
 
                     // update last for the next iteration that uses it
-                    last[(int)current] = index;
+                    last[current] = index;
 
-                    var dst = destination.Reinterpret<uint>(sizeof(byte));
-                    dst[i] = index;
+                    ((uint*)destinationPtr)[i] = index;
                 }
             }
-
-            last.Dispose();
 
             // we should've read all data bytes and stopped at the boundary between data and tail
             if (data != dataSafeEnd)

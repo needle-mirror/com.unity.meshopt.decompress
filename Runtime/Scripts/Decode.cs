@@ -17,6 +17,7 @@ namespace Meshoptimizer
     {
         internal const byte k_IndexHeader = 0xe0;
         internal const byte k_SequenceHeader = 0xd0;
+        internal const int k_DecodeIndexVersion = 1;
 
         internal const uint k_VertexBlockSizeBytes = 8192;
         internal const uint k_VertexBlockMaxSize = 256;
@@ -35,6 +36,7 @@ namespace Meshoptimizer
         /// <param name="filter">In case of <see cref="Mode.Attributes"/> mode, filter to be applied</param>
         /// <returns>JobHandle for the created C# job</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown upon invalid mode/filter</exception>
+        /// <exception cref="ArgumentException">Thrown if destination is smaller than count * size bytes</exception>
         [Obsolete("Use the overload that accepts a NativeArray<byte> source data")]
         public static JobHandle DecodeGltfBuffer(
             NativeSlice<int> returnCode,
@@ -69,6 +71,7 @@ namespace Meshoptimizer
         /// <param name="filter">In case of <see cref="Mode.Attributes"/> mode, filter to be applied</param>
         /// <returns>JobHandle for the created C# job</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown upon invalid mode/filter</exception>
+        /// <exception cref="ArgumentException">Thrown if destination is smaller than count * size bytes</exception>
         public static JobHandle DecodeGltfBuffer(
             NativeArray<int> returnCode,
             NativeArray<byte> destination,
@@ -80,6 +83,14 @@ namespace Meshoptimizer
         )
         {
             Assert.AreEqual(1, returnCode.Length);
+            // decoders write through raw pointers, so the capacity has to be validated upfront
+            if (count < 0 || size < 0 || destination.Length < (long)count * size)
+            {
+                throw new ArgumentException(
+                    $"Destination ({destination.Length} bytes) is too small for {count} elements of {size} bytes",
+                    nameof(destination)
+                );
+            }
             returnCode[0] = int.MinValue;
             switch (mode)
             {
@@ -104,8 +115,7 @@ namespace Meshoptimizer
                         indexCount = count,
                         indexSize = size,
                         source = source,
-                        returnCode = returnCode,
-                        triangleWriter = DecodeIndexTrianglesJob.GetTriangleWriter(size)
+                        returnCode = returnCode
                     };
                     return job.Schedule();
                 }
@@ -136,6 +146,7 @@ namespace Meshoptimizer
         /// <param name="mode">Compression mode</param>
         /// <param name="filter">In case of <see cref="Mode.Attributes"/> mode, filter to be applied</param>
         /// <returns>Return code that is 0 in case of success</returns>
+        /// <exception cref="ArgumentException">Thrown if destination is smaller than count * size bytes</exception>
         [Obsolete("Use the overload that accepts a NativeArray<byte>.ReadOnly source data")]
         public static int DecodeGltfBufferSync(
             NativeArray<byte> destination,
@@ -170,6 +181,7 @@ namespace Meshoptimizer
         /// <param name="mode">Compression mode</param>
         /// <param name="filter">In case of <see cref="Mode.Attributes"/> mode, filter to be applied</param>
         /// <returns>Return code that is 0 in case of success</returns>
+        /// <exception cref="ArgumentException">Thrown if destination is smaller than count * size bytes</exception>
         public static int DecodeGltfBufferSync(
             NativeArray<byte> destination,
             int count,
@@ -196,6 +208,11 @@ namespace Meshoptimizer
         internal static sbyte UnZigZag8(byte v)
         {
             return (sbyte)(-(v & 1) ^ (v >> 1));
+        }
+
+        internal static ushort UnZigZag16(ushort v)
+        {
+            return (ushort)(-(v & 1) ^ (v >> 1));
         }
 
         internal static unsafe uint DecodeVByte(ref byte* data)

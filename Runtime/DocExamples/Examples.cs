@@ -7,7 +7,7 @@ namespace Meshoptimizer.Documentation.Examples
     class Examples : MonoBehaviour
     {
         #region DecodeGltfBufferExampleAsync
-        async void DecodeGltfBufferExampleAsync(NativeArray<byte>.ReadOnly inputBuffer)
+        async Task DecodeGltfBufferExampleAsync(NativeArray<byte>.ReadOnly inputBuffer)
         {
 
             // - The size (in bytes) and number of elements (indices/vertices)

@@ -17,7 +17,7 @@ To install this package, follow the instructions for [adding a package by name](
 
 ## Requirements
 
-The *meshoptimizer mesh compression for Unity* package is compatible with Unity version of 2022.3.67f2 or later.
+The *meshoptimizer mesh compression for Unity* package is compatible with Unity version of 6000.0 or later.
 
 ## Helpful links
 
@@ -37,7 +37,7 @@ An alternative method is to decompress synchronously on the main thread via [Dec
 
 ## *meshoptimizer mesh compression for Unity* workflows
 
-A common use-case for meshoptimizer mesh decoding is loading [glTF][gltf] files that utilize it via the [EXT_meshopt_compression][EXT_meshopt_compression] extension. The [glTFast][gltfast] package uses *meshoptimizer mesh compression for Unity* for this purpose. Consult it as a reference use-case.
+A common use-case for meshoptimizer mesh decoding is loading [glTF][gltf] files that utilize it via the [KHR_meshopt_compression] (or [EXT_meshopt_compression]) extension. The [glTFast][gltfast] package uses *meshoptimizer mesh compression for Unity* for this purpose. Consult it as a reference use-case.
 
 ## Apple privacy manifest
 
@@ -59,8 +59,9 @@ The *meshoptimizer mesh compression for Unity* package does not collect data or 
 > * `com.unity.burst`
 > * `com.unity.mathematics`
 
-[EXT_meshopt_compression]: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Vendor/EXT_meshopt_compression
+[EXT_meshopt_compression]: https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md
 [gltf]: https://www.khronos.org/gltf
+[KHR_meshopt_compression]: https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_meshopt_compression/README.md
 [gltfast]: https://github.com/atteneder/glTFast
 [meshopt]: https://github.com/zeux/meshoptimizer
 [meshopt-compression]: https://github.com/zeux/meshoptimizer#mesh-compression

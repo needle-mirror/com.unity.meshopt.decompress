@@ -27,6 +27,10 @@ namespace Meshoptimizer
         /// <summary>
         /// Apply exponential filter, usually for positional data
         /// </summary>
-        Exponential
+        Exponential,
+        /// <summary>
+        /// Apply color filter (YCoCg to RGBA conversion), usually for vertex colors
+        /// </summary>
+        Color
     }
 }

@@ -4,6 +4,23 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-exp.1] - 2026-10-03
+
+### Added
+- Support for vertex buffer encoding version 1 (introduced in meshoptimizer 0.23, default since 1.0; required by [KHR_meshopt_compression](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_meshopt_compression/README.md)).
+- [Color](xref:Meshoptimizer.Filter.Color) vertex attribute filter (YCoCg to RGBA).
+- (Test) Coverage for decoder error return codes, filters applied during decoding and API argument validation.
+
+### Changed
+- Increased minimum required Unity version to 6000.0
+- Synced decoders with meshoptimizer 1.3.
+- Octahedral, quaternion and exponential filters now match upstream decoding bit-exactly (rounding and precision).
+- Improved decoding performance by avoiding per-block memory allocations and per-triangle function pointer calls.
+- [DecodeGltfBuffer](xref:Meshoptimizer.Decode.DecodeGltfBuffer*) and [DecodeGltfBufferSync](xref:Meshoptimizer.Decode.DecodeGltfBufferSync*) throw an `ArgumentException` if the destination is too small to hold the decoded data.
+
+### Fixed
+- Burst compile error BC1045 in `DecodeVertexJob`.
+
 ## [0.2.0-exp.1] - 2025-11-14
 
 ### Added

@@ -5,7 +5,7 @@ Component Name: [meshoptimizer][meshopt]
 
 Parts of the meshoptimizer library that deal with vertex/index buffer encoding/decoding were copied and ported from C/C++ to C#.
 
-[meshoptimizer][meshopt] Copyright (c) 2016-2021 Arseny Kapoulkine
+[meshoptimizer][meshopt] Copyright (c) 2016-2026 Arseny Kapoulkine
 
 License Type: MIT
 
